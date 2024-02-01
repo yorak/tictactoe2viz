@@ -18,7 +18,7 @@ for the tuples where the key is the depth."""
 def organize_by_depth(all_states):
     depth_dict = defaultdict(list)
     for state_key, (depth, state, winner) in all_states.items():
-        depth_dict[depth].append({'key': state_key, 'state_info': (depth, state, winner)})
+        depth_dict[depth].append({'state_key': state_key, 'state_info': (depth, state, winner)})
     return depth_dict
 
 def subdivide_depths(depth_dict, inner_state_max, outer_state_max):
@@ -31,9 +31,12 @@ def subdivide_depths(depth_dict, inner_state_max, outer_state_max):
         max_states_at_depth = int(inner_state_max + depth_ratio * (outer_state_max - inner_state_max))
 
         # Find optimal number of subdepths
-        possible_factors = factors(num_states)
-        num_subdepths = min(possible_factors, key=lambda x: abs(x - max_states_at_depth))
-        print(num_subdepths)
+        if (num_states<max_states_at_depth):
+            num_subdepths = 1
+        else:    
+            possible_factors = factors(num_states)
+            num_subdepths = int(num_states/max( [1]+[f for f in possible_factors if f <= max_states_at_depth] ))
+        print("depth", depth, "max_states_at_depth", max_states_at_depth, "num_subdepths", num_subdepths)
         for i, state in enumerate(states):
             subdepth = i % num_subdepths
             subdivided_depth_dict[depth][subdepth].append(state)
@@ -51,12 +54,12 @@ def draw_tictactoe_state(draw, top_left, cell_size, state, color='black'):
     for row in state:
         for cell in row:
             if cell != " ":
-                draw.text((x + 10, y + 10), cell, fill=color)
+                draw.text((x + cell_size/3, y + cell_size/5), cell, fill=color)
             x += cell_size
         x = top_left[0]
         y += cell_size
 
-def draw(organized_states, cell_size=50, cell_pad=20):
+def draw(organized_states, state_transitions, cell_size=50, cell_pad=20):
     max_depth = max(organized_states.keys())
 
     # 1. Determine image size
@@ -79,10 +82,12 @@ def draw(organized_states, cell_size=50, cell_pad=20):
         center_x = center_y = img_size[0]/2.0
 
     # 2. Initialize image
+    print(img_size)
     img = Image.new('RGB', img_size, color='white')
     draw = ImageDraw.Draw(img)
 
     # 3. Determine the placing of the states
+    xys = {}
     for depth, states_or_subgroups in organized_states.items():
 
         # Wrap plain states (no subgroups) into states with one subgroup
@@ -92,10 +97,11 @@ def draw(organized_states, cell_size=50, cell_pad=20):
 
         num_subgroups = len(state_groups)
         middle = (num_subgroups - 1) / 2
-        for sgi, states in state_groups:
+        for sgi, states in state_groups.items():
             num_states = len(states)
             
             for sti, state_info in enumerate(states):
+                key = state_info['state_key']
                 depth, state, winner = state_info['state_info']
                 
                 subgroup_r = depth*circle_sep+(sgi-middle)*2*(cell_size+cell_pad)
@@ -103,28 +109,24 @@ def draw(organized_states, cell_size=50, cell_pad=20):
                 base_offset_y = math.cos(2*math.pi*(sti/num_states))*subgroup_r
                 x = center_x + base_offset_x
                 y = center_y + base_offset_y
+                xys[key] = (x,y)
                 draw_tictactoe_state(draw, (x-cell_size, y-cell_size), cell_size, state)
                 
+    for from_state, to_state in state_transitions:
+        draw.line([xys[from_state], xys[to_state]], fill='gray')
+
     img.save(f"output/tictactoe.png")
 
 if __name__=="__main__":
-
-    all_states, state_transitions = generate_all_states_and_transitions(2)
-    organized_states = organize_by_depth(all_states)
-    sub_organized_states = subdivide_depths(organized_states, 60, 240)
-    from pprint import pprint
-    pprint(sub_organized_states)
-    exit()
-
     all_states, state_transitions = generate_all_states_and_transitions()
     print("states =",len(all_states), "links =",len(state_transitions))
-
-    
     organized_states = organize_by_depth(all_states)
-    sub_organized_states = subdivide_depths(organized_states, 60, 240)
-    
-    #per_ring = [None,None,63,63,105,95,95,195,None]
-    
     print( [(d, len(s)) for d, s in organized_states.items() ] )
+    sub_organized_states = subdivide_depths(organized_states, 60, 240)
+    from pprint import pprint
+    pprint( [(d, sgi, len(s)) for d, sg in sub_organized_states.items()
+            for sgi, s in sg.items()  ] )
     
-    draw(sub_organized_states, 20, 20)
+    
+    
+    draw(sub_organized_states, state_transitions, 15, 10)

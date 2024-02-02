@@ -100,6 +100,9 @@ def generate_all_states_and_transitions(depth_limit=None, prune_at_possible_winn
 
     return all_states, state_transitions
 
+def eliminate_symmetries():
+    pass
+    # TODO
 
 # To run the tests
 if __name__ == "__main__":
